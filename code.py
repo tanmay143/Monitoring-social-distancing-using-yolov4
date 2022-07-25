@@ -1,0 +1,94 @@
+import cv2
+import numpy as np
+from scipy.spatial import distance as dist
+
+net = cv2.dnn.readNet("C:/yolo/yolov3-tiny.weights", "C:/yolo/yolov3-tiny.cfg")
+classes = []
+with open("C:/yolo/coco.names", "r") as f:
+    classes = [line.strip() for line in f.readlines()]
+layer_names = net.getLayerNames()
+output_layers = [layer_names[i[0] - 1]  for i in net.getUnconnectedOutLayers()]
+
+
+camera = cv2.VideoCapture("C:/Users/Tanmay Pajgade/Downloads/pedestrians.mp4")
+
+while True:
+    
+    (ret,img) = camera.read()
+    if ret == True :
+    
+            (height,width)= img.shape[0:2]
+        
+            # Detecting objects
+            blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (316, 316),
+        		swapRB=True, crop=False)
+            net.setInput(blob)
+            outs = net.forward(output_layers)
+        
+            # Showing informations on the screen
+            class_ids = []
+            confidences = []
+            boxes = []
+            center = []
+            for output in outs:
+                for detection in output:
+                    scores = detection[5:]
+                    class_id = np.argmax(scores)
+                    confidence = scores[class_id]
+                    if class_id == 0 :
+                    
+                        if confidence > 0.1 :
+                            # Object detected
+                            center_x = int(detection[0] * width)
+                            center_y = int(detection[1] * height)
+                            w = int(detection[2] * width)
+                            h = int(detection[3] * height)
+                           
+                            x = int(center_x - w / 2)
+                            y = int(center_y - h / 2)
+                            boxes.append([x, y, w, h])
+                            confidences.append(float(confidence))
+                            center.append([center_x,center_y])
+                            
+                            
+        
+            indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+            violate = set()
+            if  len(center) >= 2 :
+               centroids = np.array(center)
+               D = dist.cdist(centroids, centroids, metric="euclidean")
+               for i in range(0, D.shape[0]):
+                   for j in range(i + 1, D.shape[1]):
+                       if D[i, j] < 50:
+                           violate.add(i)
+                           violate.add(j)
+                           
+                           
+                           
+					       
+                           
+        				
+            
+        
+            font = cv2.FONT_HERSHEY_PLAIN
+            for i in range(len(boxes)):
+                if i in indexes:
+                    x, y, w, h = boxes[i]
+                    color = (0,255,0)
+                    if i in violate :
+                        color = (255,0,0)
+                        
+                    cv2.rectangle(img, (x, y), (x + w, y + h), color, 1)
+                    
+                        
+                        
+                    cv2.imshow('img',img)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+    else:
+             
+          
+              camera.release()
+              cv2.destroyAllWindows()
+    
+print("The video was successfully saved")
